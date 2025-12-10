@@ -1,50 +1,29 @@
-const originalXHROpen = XMLHttpRequest.prototype.open;
-const originalXHRSend = XMLHttpRequest.prototype.send;
+const script = document.createElement('script');
+script.src = chrome.runtime.getURL('inject.js');
+(document.head || document.documentElement).appendChild(script);
+script.onload = () => script.remove();
 
-XMLHttpRequest.prototype.open = function(method, url, ...args) {
-  this._method = method;
-  this._url = url;
-  return originalXHROpen.apply(this, [method, url, ...args]);
-};
-
-XMLHttpRequest.prototype.send = function(body) {
-  if (this._url && this._url.includes('recommendationv2.api.useinsider.com')) {
-    const requestData = {
-      url: this._url,
-      method: this._method,
-      body: body,
-      timestamp: Date.now()
-    };
-
-    this.addEventListener('load', function() {
-      const responseData = {
-        ...requestData,
-        status: this.status,
-        statusText: this.statusText,
-        response: this.responseText
-      };
-
-      console.log('API Request Captured:', responseData);
-
-      chrome.storage.local.get(['apiRequests'], (result) => {
-        const requests = result.apiRequests || [];
-        requests.push({
-          url: responseData.url,
-          method: responseData.method,
-          status: responseData.status,
-          body: responseData.body,
-          response: responseData.response,
-          timestamp: responseData.timestamp,
-          timeString: new Date(responseData.timestamp).toLocaleString()
-        });
-        
-        chrome.storage.local.set({ apiRequests: requests });
+window.addEventListener('message', (event) => {
+  if (event.source !== window) return;
+  if (event.data.type === 'XHR_INTERCEPTED') {
+    const responseData = event.data.data;
+    
+    chrome.storage.local.get(['apiRequests'], (result) => {
+      const requests = result.apiRequests || [];
+      requests.push({
+        url: responseData.url,
+        method: responseData.method,
+        status: responseData.status,
+        body: responseData.body,
+        response: responseData.response,
+        timestamp: responseData.timestamp,
+        timeString: new Date(responseData.timestamp).toLocaleString()
       });
+      
+      chrome.storage.local.set({ apiRequests: requests });
     });
   }
-
-  return originalXHRSend.apply(this, arguments);
-};
+});
 
 if (window === window.top) {
   chrome.storage.local.set({ apiRequests: [] });
