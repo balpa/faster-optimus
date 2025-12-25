@@ -2,11 +2,35 @@ document.addEventListener('DOMContentLoaded', () => {
   loadRequests();
   startPolling();
   
-  document.getElementById('clearBtn').addEventListener('click', () => {
-    chrome.storage.local.set({ apiRequests: [] }, () => {
+  document.querySelectorAll('.section-header').forEach(header => {
+    header.addEventListener('click', (e) => {
+      if (e.target.classList.contains('clear-btn-small')) return;
+      
+      const section = header.parentElement;
+      const content = section.querySelector('.section-content');
+      const icon = section.querySelector('.section-expand-icon');
+      
+      content.classList.toggle('expanded');
+      icon.textContent = content.classList.contains('expanded') ? '▲' : '▼';
+    });
+  });
+  
+  document.getElementById('clearRecommendationBtn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    chrome.storage.local.set({ recommendationRequests: [] }, () => {
       expandedItems.clear();
       expandedSections.clear();
-      lastRequestCount = 0;
+      lastRecommendationCount = 0;
+      loadRequests();
+    });
+  });
+  
+  document.getElementById('clearHitBtn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    chrome.storage.local.set({ hitRequests: [] }, () => {
+      expandedItems.clear();
+      expandedSections.clear();
+      lastHitCount = 0;
       loadRequests();
     });
   });
@@ -14,14 +38,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
 const expandedItems = new Set();
 const expandedSections = new Map();
-let lastRequestCount = 0;
+let lastRecommendationCount = 0;
+let lastHitCount = 0;
 
 const startPolling = () => {
   setInterval(() => {
-    chrome.storage.local.get(['apiRequests'], (result) => {
-      const requests = result.apiRequests || [];
-      if (requests.length !== lastRequestCount) {
-        lastRequestCount = requests.length;
+    chrome.storage.local.get(['recommendationRequests', 'hitRequests'], (result) => {
+      const recommendationRequests = result.recommendationRequests || [];
+      const hitRequests = result.hitRequests || [];
+      
+      if (recommendationRequests.length !== lastRecommendationCount || hitRequests.length !== lastHitCount) {
+        lastRecommendationCount = recommendationRequests.length;
+        lastHitCount = hitRequests.length;
         loadRequests();
       }
     });
@@ -29,24 +57,32 @@ const startPolling = () => {
 };
 
 const loadRequests = () => {
-  chrome.storage.local.get(['apiRequests'], (result) => {
-    const requests = result.apiRequests || [];
+  chrome.storage.local.get(['recommendationRequests', 'hitRequests'], (result) => {
+    const recommendationRequests = result.recommendationRequests || [];
+    const hitRequests = result.hitRequests || [];
     
-    document.getElementById('totalRequests').textContent = requests.length;
+    document.getElementById('recommendationCount').textContent = recommendationRequests.length;
+    document.getElementById('hitCount').textContent = hitRequests.length;
     
-    const requestList = document.getElementById('requestList');
-    
-    if (requests.length === 0) {
-      requestList.innerHTML = `
-        <div class="empty-state">
-          <div class="empty-state-icon">📭</div>
-          <div class="empty-state-text">No requests detected yet.<br>Navigate to a page using the API.</div>
-        </div>
-      `;
-      return;
-    }
-    
-    requestList.innerHTML = [...requests].reverse().map((req, index) => {
+    renderRequestList('recommendationList', recommendationRequests);
+    renderRequestList('hitList', hitRequests);
+  });
+};
+
+const renderRequestList = (containerId, requests) => {
+  const requestList = document.getElementById(containerId);
+  
+  if (requests.length === 0) {
+    requestList.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state-icon">📭</div>
+        <div class="empty-state-text">No requests detected yet.<br>Navigate to a page using the API.</div>
+      </div>
+    `;
+    return;
+  }
+  
+  requestList.innerHTML = [...requests].reverse().map((req, index) => {
       const parsedResponse = tryParseJSON(req.response);
       const products = extractProducts(req.response);
       const urlInfo = parseUrlInfo(req.url);
@@ -118,7 +154,7 @@ const loadRequests = () => {
       `;
     }).join('');
     
-    document.querySelectorAll('.request-item').forEach(item => {
+  requestList.querySelectorAll('.request-item').forEach(item => {
       const header = item.querySelector('.request-header');
       header.addEventListener('click', (e) => {
         const index = parseInt(item.dataset.index);
@@ -133,7 +169,7 @@ const loadRequests = () => {
       });
     });
     
-    document.querySelectorAll('.detail-label.collapsible').forEach(label => {
+  requestList.querySelectorAll('.detail-label.collapsible').forEach(label => {
       label.addEventListener('click', (e) => {
         e.stopPropagation();
         const index = label.dataset.index;
@@ -145,7 +181,7 @@ const loadRequests = () => {
       });
     });
     
-    document.querySelectorAll('.product-header.collapsible').forEach(header => {
+  requestList.querySelectorAll('.product-header.collapsible').forEach(header => {
       header.addEventListener('click', (e) => {
         e.stopPropagation();
         const index = header.dataset.index;
@@ -156,7 +192,6 @@ const loadRequests = () => {
         loadRequests();
       });
     });
-  });
 };
 
 const tryParseJSON = (str) => {

@@ -8,12 +8,16 @@ XMLHttpRequest.prototype.open = function(method, url, ...args) {
 };
 
 XMLHttpRequest.prototype.send = function(body) {
-  if (this._url && this._url.includes('recommendationv2.api.useinsider.com')) {
+  const isRecommendation = this._url && this._url.includes('recommendationv2.api.useinsider.com');
+  const isHit = this._url && this._url.includes('hit.api.useinsider.com/hit');
+  
+  if (isRecommendation || isHit) {
     const requestData = {
       url: this._url,
       method: this._method,
       body: body,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      type: isRecommendation ? 'recommendation' : 'hit'
     };
 
     this.addEventListener('load', function() {

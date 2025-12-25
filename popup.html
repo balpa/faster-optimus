@@ -9,15 +9,27 @@
 <body>
   <div class="container">
     <h1>Faster Optimus</h1>
-    <div class="stats">
-      <div class="stat-item">
-        <span class="stat-label">Total Requests:</span>
-        <span class="stat-value" id="totalRequests">0</span>
+    <div class="sections">
+      <div class="section">
+        <div class="section-header" data-section="recommendation">
+          <span class="section-title">Recommendation (<span id="recommendationCount">0</span>)</span>
+          <div class="section-actions">
+            <button id="clearRecommendationBtn" class="clear-btn-small">Clear</button>
+            <span class="section-expand-icon">▼</span>
+          </div>
+        </div>
+        <div id="recommendationList" class="section-content"></div>
       </div>
-      <button id="clearBtn" class="clear-btn">Clear</button>
-    </div>
-    <div id="content">
-      <div id="requestList"></div>
+      <div class="section">
+        <div class="section-header" data-section="hit">
+          <span class="section-title">Hit (<span id="hitCount">0</span>)</span>
+          <div class="section-actions">
+            <button id="clearHitBtn" class="clear-btn-small">Clear</button>
+            <span class="section-expand-icon">▼</span>
+          </div>
+        </div>
+        <div id="hitList" class="section-content"></div>
+      </div>
     </div>
   </div>
   <script src="popup.js"></script>

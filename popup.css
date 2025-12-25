@@ -21,6 +21,79 @@ h1 {
   text-align: center;
 }
 
+.sections {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.section {
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: white;
+}
+
+.section-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 15px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+  transition: opacity 0.2s;
+}
+
+.section-header:hover {
+  opacity: 0.9;
+}
+
+.section-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.section-expand-icon {
+  font-size: 12px;
+  transition: transform 0.2s;
+}
+
+.section-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.clear-btn-small {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.clear-btn-small:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.section-content {
+  max-height: 400px;
+  overflow-y: auto;
+  padding: 0;
+  display: none;
+}
+
+.section-content.expanded {
+  display: block;
+  padding: 15px;
+}
+
 #content {
   background: white;
   padding: 15px;
