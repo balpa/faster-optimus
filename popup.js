@@ -91,14 +91,19 @@ const renderRequestList = (containerId, requests) => {
       const responseExpanded = expandedSections.get(`${index}-response`) || false;
       const attributesExpanded = expandedSections.get(`${index}-attributes`) || false;
       
+      let displayTitle = urlInfo.algorithm;
+      if (req.eventType) {
+        displayTitle = req.eventType === 'pageView' && req.pageType ? req.pageType : req.eventType;
+      }
+      
       return `
         <div class="request-item" data-index="${index}">
           <div class="request-header">
             <div>
-              <div class="request-algorithm">${urlInfo.algorithm}</div>
+              <div class="request-algorithm">${displayTitle}</div>
               <div class="request-info">
-                <span class="request-param">Locale: ${urlInfo.locale || 'N/A'}</span>
-                <span class="request-param">Currency: ${urlInfo.currency || 'N/A'}</span>
+                ${req.eventType ? '' : `<span class="request-param">Locale: ${urlInfo.locale || 'N/A'}</span>`}
+                ${req.eventType ? '' : `<span class="request-param">Currency: ${urlInfo.currency || 'N/A'}</span>`}
                 <span class="request-time">${req.timeString}</span>
               </div>
             </div>
@@ -114,7 +119,7 @@ const renderRequestList = (containerId, requests) => {
             ${req.body ? `
               <div class="detail-section">
                 <div class="detail-label">Request Body</div>
-                <div class="detail-content expanded">${req.body}</div>
+                <div class="detail-content expanded">${formatRequestBody(req.body)}</div>
               </div>
             ` : ''}
             <div class="detail-section">
@@ -251,4 +256,18 @@ const formatAttributes = (attributes) => {
       <span class="attribute-value">${JSON.stringify(value)}</span>
     </div>
   `).join('');
+};
+
+const formatRequestBody = (bodyStr) => {
+  try {
+    const bodyObj = JSON.parse(bodyStr);
+    return Object.entries(bodyObj).map(([key, value]) => `
+      <div class="attribute-row">
+        <span class="attribute-key">${key}:</span>
+        <span class="attribute-value">${JSON.stringify(value)}</span>
+      </div>
+    `).join('');
+  } catch (e) {
+    return bodyStr;
+  }
 };
