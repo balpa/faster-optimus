@@ -12,17 +12,10 @@
       <h1>Faster Optimus</h1>
       <div id="generateTime" class="generate-time">GT: -</div>
     </div>
-    <div class="toggle-container">
-      <label class="toggle-label">
-        <span>Track Add to Cart</span>
-        <input type="checkbox" id="trackAddToCartToggle" class="toggle-input">
-        <span class="toggle-slider"></span>
-      </label>
-    </div>
     <div class="sections">
       <div class="section">
         <div class="section-header" data-section="recommendation">
-          <span class="section-title">Recommendation (<span id="recommendationCount">0</span>)</span>
+          <span class="section-title">Recommendation <span class="count-arrow">→</span> <span id="recommendationCount" class="count-badge">0</span></span>
           <div class="section-actions">
             <button id="clearRecommendationBtn" class="clear-btn-small">Clear</button>
             <span class="section-expand-icon">▼</span>
@@ -32,7 +25,7 @@
       </div>
       <div class="section">
         <div class="section-header" data-section="hit">
-          <span class="section-title">Hit (<span id="hitCount">0</span>)</span>
+          <span class="section-title">Hit <span class="count-arrow">→</span> <span id="hitCount" class="count-badge">0</span></span>
           <div class="section-actions">
             <button id="clearHitBtn" class="clear-btn-small">Clear</button>
             <span class="section-expand-icon">▼</span>
@@ -42,7 +35,7 @@
       </div>
       <div class="section">
         <div class="section-header" data-section="ucd">
-          <span class="section-title">UCD Segment (<span id="ucdCount">0</span>)</span>
+          <span class="section-title">UCD Segment <span class="count-arrow">→</span> <span id="ucdCount" class="count-badge">0</span></span>
           <div class="section-actions">
             <button id="clearUcdBtn" class="clear-btn-small">Clear</button>
             <span class="section-expand-icon">▼</span>
@@ -54,8 +47,13 @@
       </div>
       <div class="section">
         <div class="section-header" data-section="addToCart">
-          <span class="section-title">Add to Cart (<span id="addToCartCount">0</span>)</span>
+          <span class="section-title">Add to Cart <span class="count-arrow">→</span> <span id="addToCartCount" class="count-badge">0</span></span>
           <div class="section-actions">
+            <span class="toggle-label-text">Track</span>
+            <label class="toggle-switch">
+              <input type="checkbox" id="trackAddToCartToggle" class="toggle-input">
+              <span class="toggle-slider-small"></span>
+            </label>
             <button id="clearAddToCartBtn" class="clear-btn-small">Clear</button>
             <span class="section-expand-icon">▼</span>
           </div>
