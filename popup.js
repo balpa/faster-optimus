@@ -34,22 +34,35 @@ document.addEventListener('DOMContentLoaded', () => {
       loadRequests();
     });
   });
+  
+  document.getElementById('clearUcdBtn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    chrome.storage.local.set({ ucdRequests: [] }, () => {
+      expandedItems.clear();
+      expandedSections.clear();
+      lastUcdCount = 0;
+      loadRequests();
+    });
+  });
 });
 
 const expandedItems = new Set();
 const expandedSections = new Map();
 let lastRecommendationCount = 0;
 let lastHitCount = 0;
+let lastUcdCount = 0;
 
 const startPolling = () => {
   setInterval(() => {
-    chrome.storage.local.get(['recommendationRequests', 'hitRequests'], (result) => {
+    chrome.storage.local.get(['recommendationRequests', 'hitRequests', 'ucdRequests'], (result) => {
       const recommendationRequests = result.recommendationRequests || [];
       const hitRequests = result.hitRequests || [];
+      const ucdRequests = result.ucdRequests || [];
       
-      if (recommendationRequests.length !== lastRecommendationCount || hitRequests.length !== lastHitCount) {
+      if (recommendationRequests.length !== lastRecommendationCount || hitRequests.length !== lastHitCount || ucdRequests.length !== lastUcdCount) {
         lastRecommendationCount = recommendationRequests.length;
         lastHitCount = hitRequests.length;
+        lastUcdCount = ucdRequests.length;
         loadRequests();
       }
     });
@@ -57,15 +70,18 @@ const startPolling = () => {
 };
 
 const loadRequests = () => {
-  chrome.storage.local.get(['recommendationRequests', 'hitRequests'], (result) => {
+  chrome.storage.local.get(['recommendationRequests', 'hitRequests', 'ucdRequests'], (result) => {
     const recommendationRequests = result.recommendationRequests || [];
     const hitRequests = result.hitRequests || [];
+    const ucdRequests = result.ucdRequests || [];
     
     document.getElementById('recommendationCount').textContent = recommendationRequests.length;
     document.getElementById('hitCount').textContent = hitRequests.length;
+    document.getElementById('ucdCount').textContent = ucdRequests.length;
     
     renderRequestList('recommendationList', recommendationRequests);
     renderRequestList('hitList', hitRequests);
+    renderUcdList('ucdList', ucdRequests);
   });
 };
 
@@ -250,24 +266,187 @@ const formatAttributes = (attributes) => {
     return '<div class="no-attributes">No attributes</div>';
   }
   
-  return Object.entries(attributes).map(([key, value]) => `
-    <div class="attribute-row">
-      <span class="attribute-key">${key}:</span>
-      <span class="attribute-value">${JSON.stringify(value)}</span>
-    </div>
-  `).join('');
+  return Object.entries(attributes).map(([key, value]) => {
+    let displayValue = JSON.stringify(value);
+    try {
+      displayValue = decodeURIComponent(escape(displayValue));
+    } catch (e) {
+    }
+    return `
+      <div class="attribute-row">
+        <span class="attribute-key">${key}:</span>
+        <span class="attribute-value">${displayValue}</span>
+      </div>
+    `;
+  }).join('');
 };
 
 const formatRequestBody = (bodyStr) => {
   try {
     const bodyObj = JSON.parse(bodyStr);
-    return Object.entries(bodyObj).map(([key, value]) => `
-      <div class="attribute-row">
-        <span class="attribute-key">${key}:</span>
-        <span class="attribute-value">${JSON.stringify(value)}</span>
-      </div>
-    `).join('');
+    return Object.entries(bodyObj).map(([key, value]) => {
+      let displayValue = JSON.stringify(value);
+      try {
+        displayValue = decodeURIComponent(escape(displayValue));
+      } catch (e) {
+      }
+      return `
+        <div class="attribute-row">
+          <span class="attribute-key">${key}:</span>
+          <span class="attribute-value">${displayValue}</span>
+        </div>
+      `;
+    }).join('');
   } catch (e) {
     return bodyStr;
+  }
+};
+
+const renderUcdList = (containerId, requests) => {
+  const requestList = document.getElementById(containerId);
+  
+  if (requests.length === 0) {
+    requestList.innerHTML = `
+      <button id="resetUcdSegmentsBtn" class="reset-ucd-btn">Reset UCD Segments</button>
+      <div class="empty-state">
+        <div class="empty-state-icon">📭</div>
+        <div class="empty-state-text">No UCD segment requests detected yet.</div>
+      </div>
+    `;
+    attachResetButtonListener();
+    return;
+  }
+  
+  requestList.innerHTML = `
+    <button id="resetUcdSegmentsBtn" class="reset-ucd-btn">Reset UCD Segments</button>
+  ` + [...requests].reverse().map((req, index) => {
+    const isExpanded = expandedItems.has(`ucd-${index}`);
+    
+    let builders = [];
+    let expireDate = '';
+    
+    try {
+      const response = JSON.parse(req.response);
+      if (response.results) {
+        builders = Object.entries(response.results).map(([id, value]) => ({
+          id,
+          value
+        }));
+      }
+    } catch (e) {
+      console.log('Failed to parse UCD response:', e);
+    }
+
+    if (req.sessionExpire) {
+      console.log('Session Expire Raw:', req.sessionExpire);
+      const timestamp = parseInt(req.sessionExpire);
+      if (!isNaN(timestamp)) {
+        const expireTimestamp = (timestamp + 1800) * 1000;
+        expireDate = new Date(expireTimestamp).toLocaleString('tr-TR', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit'
+        });
+        console.log('Session Expire Formatted (+ 30 min):', expireDate);
+      }
+    } else {
+      console.log('No sessionExpire found in request:', req);
+    }
+    
+    return `
+      <div class="request-item" data-index="ucd-${index}">
+        <div class="request-header">
+          <div>
+            <div class="request-algorithm">UCD Segment Requests</div>
+            <div class="request-info">
+              <span class="request-param">Builders: ${builders.length}</span>
+              ${expireDate ? `<span class="request-param">Expire: ${expireDate}</span>` : ''}
+              <span class="request-time">${req.timeString}</span>
+            </div>
+          </div>
+          <span class="expand-icon">${isExpanded ? '▲' : '▼'}</span>
+        </div>
+        <div class="request-details ${isExpanded ? 'expanded' : ''}" id="details-ucd-${index}">
+          <div class="detail-section">
+            <div class="detail-label">Full URL</div>
+            <div class="detail-content expanded">${req.url}</div>
+          </div>
+          ${expireDate ? `
+            <div class="detail-section">
+              <div class="detail-label">Sessıon Expıre Date</div>
+              <div class="detail-content expanded">
+                <div class="attribute-row">
+                  <span class="attribute-key">Expires At:</span>
+                  <span class="attribute-value">${expireDate}</span>
+                </div>
+                <div class="attribute-row">
+                  <span class="attribute-key">Raw Timestamp:</span>
+                  <span class="attribute-value">${req.sessionExpire}</span>
+                </div>
+              </div>
+            </div>
+          ` : ''}
+          ${builders.length > 0 ? `
+            <div class="detail-section">
+              <div class="detail-label">Buılder IDs</div>
+              <div class="detail-content expanded">
+                ${builders.map(builder => `
+                  <div class="attribute-row">
+                    <span class="attribute-key">${builder.id}:</span>
+                    <span class="attribute-value">${builder.value}</span>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          ` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+  
+  requestList.querySelectorAll('.request-item').forEach(item => {
+    const header = item.querySelector('.request-header');
+    header.addEventListener('click', (e) => {
+      const index = item.dataset.index;
+      
+      if (expandedItems.has(index)) {
+        expandedItems.delete(index);
+      } else {
+        expandedItems.add(index);
+      }
+      
+      loadRequests();
+    });
+  });
+  
+  attachResetButtonListener();
+};
+
+const attachResetButtonListener = () => {
+  const resetBtn = document.getElementById('resetUcdSegmentsBtn');
+  if (resetBtn) {
+    resetBtn.addEventListener('click', () => {
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        chrome.tabs.sendMessage(tabs[0].id, { type: 'RESET_UCD_SEGMENTS' }, (response) => {
+          if (response && response.success) {
+            const originalText = resetBtn.textContent;
+            const originalBg = resetBtn.style.background;
+            
+            resetBtn.textContent = 'Resetted!';
+            resetBtn.style.background = 'linear-gradient(135deg, #4caf50 0%, #388e3c 100%)';
+            resetBtn.style.boxShadow = '0 2px 4px rgba(76, 175, 80, 0.3)';
+            
+            setTimeout(() => {
+              resetBtn.textContent = originalText;
+              resetBtn.style.background = originalBg;
+              resetBtn.style.boxShadow = '0 2px 4px rgba(244, 67, 54, 0.3)';
+            }, 2000);
+          }
+        });
+      });
+    });
   }
 };

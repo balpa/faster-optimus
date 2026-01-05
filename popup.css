@@ -87,6 +87,33 @@ h1 {
   background: rgba(255, 255, 255, 0.3);
 }
 
+.reset-ucd-btn {
+  background: linear-gradient(135deg, #f44336 0%, #d32f2f 100%);
+  color: white;
+  border: none;
+  padding: 12px 20px;
+  margin: 15px 15px 10px 15px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  transition: all 0.2s;
+  width: calc(100% - 30px);
+  box-shadow: 0 2px 4px rgba(244, 67, 54, 0.3);
+  display: block;
+}
+
+.reset-ucd-btn:hover {
+  background: linear-gradient(135deg, #e53935 0%, #c62828 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(244, 67, 54, 0.4);
+}
+
+.reset-ucd-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(244, 67, 54, 0.3);
+}
+
 .section-content {
   max-height: 400px;
   overflow-y: auto;
