@@ -8,7 +8,17 @@
 </head>
 <body>
   <div class="container">
-    <h1>Faster Optimus</h1>
+    <div class="header-section">
+      <h1>Faster Optimus</h1>
+      <div id="generateTime" class="generate-time">GT: -</div>
+    </div>
+    <div class="toggle-container">
+      <label class="toggle-label">
+        <span>Track Add to Cart</span>
+        <input type="checkbox" id="trackAddToCartToggle" class="toggle-input">
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
     <div class="sections">
       <div class="section">
         <div class="section-header" data-section="recommendation">
@@ -41,6 +51,16 @@
         <div id="ucdList" class="section-content">
           <button id="resetUcdSegmentsBtn" class="reset-ucd-btn">Reset UCD Segments</button>
         </div>
+      </div>
+      <div class="section">
+        <div class="section-header" data-section="addToCart">
+          <span class="section-title">Add to Cart (<span id="addToCartCount">0</span>)</span>
+          <div class="section-actions">
+            <button id="clearAddToCartBtn" class="clear-btn-small">Clear</button>
+            <span class="section-expand-icon">▼</span>
+          </div>
+        </div>
+        <div id="addToCartList" class="section-content"></div>
       </div>
     </div>
   </div>

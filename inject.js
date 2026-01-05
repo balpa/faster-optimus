@@ -29,8 +29,6 @@ XMLHttpRequest.prototype.send = function(body) {
         response: this.responseText
       };
 
-      console.log('API Request Captured:', responseData);
-
       window.postMessage({
         type: 'XHR_INTERCEPTED',
         data: responseData
@@ -41,7 +39,6 @@ XMLHttpRequest.prototype.send = function(body) {
         setTimeout(() => {
           try {
             const sessionExpire = window.Insider?.storage?.session?.get('ins-uss') || sessionStorage.getItem('ins-uss');
-            console.log('Session Expire Found:', sessionExpire);
             
             window.postMessage({
               type: 'UCD_SESSION_EXPIRE',
@@ -51,7 +48,7 @@ XMLHttpRequest.prototype.send = function(body) {
               }
             }, '*');
           } catch (e) {
-            console.log('Failed to get ins-uss:', e);
+            // Ignore error
           }
         }, 2000);
       }
@@ -69,13 +66,74 @@ window.addEventListener('message', (event) => {
     try {
       if (window.Insider?.storage?.session?.remove) {
         window.Insider.storage.session.remove('ins-uss');
-        console.log('UCD Segments reset: ins-uss removed from session storage');
       } else {
         sessionStorage.removeItem('ins-uss');
-        console.log('UCD Segments reset: ins-uss removed from sessionStorage');
       }
     } catch (e) {
-      console.log('Failed to remove ins-uss:', e);
+      // Ignore error
+    }
+  }
+  
+  if (event.data.type === 'TOGGLE_ADD_TO_CART_TRACKING') {
+    window.insiderTrackAddToCart = event.data.enabled;
+    
+    if (event.data.enabled && !window.insiderAddToCartHooked) {
+      installAddToCartHook();
+    }
+  }
+  
+  if (event.data.type === 'GET_GENERATE_TIME') {
+    try {
+      const generateTime = window.Insider?.generateTime;
+      window.postMessage({
+        type: 'GENERATE_TIME_RESPONSE',
+        data: {
+          generateTime: generateTime || null
+        }
+      }, '*');
+    } catch (e) {
+      // Ignore error
     }
   }
 });
+
+const installAddToCartHook = () => {
+  if (window.insiderAddToCartHooked) return;
+  
+  const checkInterval = setInterval(() => {
+    if (window.Insider?.systemRules?.spAddToCart) {
+      clearInterval(checkInterval);
+      window.insiderAddToCartHooked = true;
+      
+      const originalSpAddToCart = window.Insider.systemRules.spAddToCart;
+      
+      window.Insider.systemRules.spAddToCart = function() {
+        const result = originalSpAddToCart.apply(this, arguments);
+        
+        if (result && result.addToBasket) {
+          const originalAddToBasket = result.addToBasket;
+          
+          result.addToBasket = function(productId, callback, payload) {
+            if (window.insiderTrackAddToCart) {
+              window.postMessage({
+                type: 'ADD_TO_CART_INTERCEPTED',
+                data: {
+                  productId: productId,
+                  product: payload?.product || payload,
+                  timestamp: Date.now()
+                }
+              }, '*');
+            }
+            
+            return originalAddToBasket.apply(this, arguments);
+          };
+        }
+        
+        return result;
+      };
+    }
+  }, 100);
+  
+  setTimeout(() => clearInterval(checkInterval), 10000);
+};
+

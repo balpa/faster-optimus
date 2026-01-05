@@ -44,25 +44,117 @@ document.addEventListener('DOMContentLoaded', () => {
       loadRequests();
     });
   });
+  
+  document.getElementById('clearAddToCartBtn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    chrome.storage.local.set({ addToCartRequests: [] }, () => {
+      expandedItems.clear();
+      expandedSections.clear();
+      lastAddToCartCount = 0;
+      loadRequests();
+    });
+  });
+  
+  // Toggle switch için storage'dan durumu yükle
+  chrome.storage.local.get(['trackAddToCart'], (result) => {
+    const toggle = document.getElementById('trackAddToCartToggle');
+    toggle.checked = result.trackAddToCart || false;
+    
+    // İlk durumu gönder
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs[0]) {
+        chrome.tabs.sendMessage(tabs[0].id, { 
+          type: 'TOGGLE_ADD_TO_CART_TRACKING', 
+          enabled: toggle.checked 
+        }, () => {
+          if (chrome.runtime.lastError) {
+            // Extension context invalidated - ignore
+          }
+        });
+      }
+    });
+  });
+  
+  document.getElementById('trackAddToCartToggle').addEventListener('change', (e) => {
+    const enabled = e.target.checked;
+    chrome.storage.local.set({ trackAddToCart: enabled });
+    
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs[0]) {
+        chrome.tabs.sendMessage(tabs[0].id, { 
+          type: 'TOGGLE_ADD_TO_CART_TRACKING', 
+          enabled: enabled 
+        }, () => {
+          if (chrome.runtime.lastError) {
+            // Extension context invalidated - ignore
+          }
+        });
+      }
+    });
+  });
+  
+  // Generate Time'ı çek ve göster
+  updateGenerateTime();
+  setInterval(updateGenerateTime, 2000);
 });
+
+const updateGenerateTime = () => {
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    if (tabs[0]) {
+      chrome.tabs.sendMessage(tabs[0].id, { type: 'GET_GENERATE_TIME' }, () => {
+        if (chrome.runtime.lastError) {
+          // Extension context invalidated - ignore
+        }
+      });
+      
+      chrome.storage.local.get(['insiderGenerateTime'], (result) => {
+        const generateTime = result.insiderGenerateTime;
+        const gtElement = document.getElementById('generateTime');
+        
+        if (generateTime) {
+          const date = new Date(generateTime * 1000);
+          gtElement.textContent = `GT: ${date.toLocaleString('tr-TR', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+          })}`;
+          gtElement.style.color = '#667eea';
+        } else {
+          gtElement.textContent = 'GT: -';
+          gtElement.style.color = '#999';
+        }
+      });
+    }
+  });
+};
 
 const expandedItems = new Set();
 const expandedSections = new Map();
 let lastRecommendationCount = 0;
 let lastHitCount = 0;
 let lastUcdCount = 0;
+let lastAddToCartCount = 0;
 
 const startPolling = () => {
   setInterval(() => {
-    chrome.storage.local.get(['recommendationRequests', 'hitRequests', 'ucdRequests'], (result) => {
+    chrome.storage.local.get(['recommendationRequests', 'hitRequests', 'ucdRequests', 'addToCartRequests'], (result) => {
       const recommendationRequests = result.recommendationRequests || [];
       const hitRequests = result.hitRequests || [];
       const ucdRequests = result.ucdRequests || [];
+      const addToCartRequests = result.addToCartRequests || [];
       
-      if (recommendationRequests.length !== lastRecommendationCount || hitRequests.length !== lastHitCount || ucdRequests.length !== lastUcdCount) {
+      if (addToCartRequests.length > 0) {
+        console.log('Add to Cart Requests:', addToCartRequests);
+      }
+      
+      if (recommendationRequests.length !== lastRecommendationCount || hitRequests.length !== lastHitCount || ucdRequests.length !== lastUcdCount || addToCartRequests.length !== lastAddToCartCount) {
         lastRecommendationCount = recommendationRequests.length;
         lastHitCount = hitRequests.length;
         lastUcdCount = ucdRequests.length;
+        lastAddToCartCount = addToCartRequests.length;
         loadRequests();
       }
     });
@@ -70,18 +162,21 @@ const startPolling = () => {
 };
 
 const loadRequests = () => {
-  chrome.storage.local.get(['recommendationRequests', 'hitRequests', 'ucdRequests'], (result) => {
+  chrome.storage.local.get(['recommendationRequests', 'hitRequests', 'ucdRequests', 'addToCartRequests'], (result) => {
     const recommendationRequests = result.recommendationRequests || [];
     const hitRequests = result.hitRequests || [];
     const ucdRequests = result.ucdRequests || [];
+    const addToCartRequests = result.addToCartRequests || [];
     
     document.getElementById('recommendationCount').textContent = recommendationRequests.length;
     document.getElementById('hitCount').textContent = hitRequests.length;
     document.getElementById('ucdCount').textContent = ucdRequests.length;
+    document.getElementById('addToCartCount').textContent = addToCartRequests.length;
     
     renderRequestList('recommendationList', recommendationRequests);
     renderRequestList('hitList', hitRequests);
     renderUcdList('ucdList', ucdRequests);
+    renderAddToCartList('addToCartList', addToCartRequests);
   });
 };
 
@@ -431,6 +526,11 @@ const attachResetButtonListener = () => {
     resetBtn.addEventListener('click', () => {
       chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         chrome.tabs.sendMessage(tabs[0].id, { type: 'RESET_UCD_SEGMENTS' }, (response) => {
+          if (chrome.runtime.lastError) {
+            // Extension context invalidated - ignore
+            return;
+          }
+          
           if (response && response.success) {
             const originalText = resetBtn.textContent;
             const originalBg = resetBtn.style.background;
@@ -449,4 +549,72 @@ const attachResetButtonListener = () => {
       });
     });
   }
+};
+
+const renderAddToCartList = (containerId, requests) => {
+  const requestList = document.getElementById(containerId);
+  
+  if (requests.length === 0) {
+    requestList.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state-icon">🛒</div>
+        <div class="empty-state-text">No add to cart events detected yet.<br>Enable tracking with the toggle above.</div>
+      </div>
+    `;
+    return;
+  }
+  
+  requestList.innerHTML = [...requests].reverse().map((req, index) => {
+    const isExpanded = expandedItems.has(`cart-${index}`);
+    const product = req.product || {};
+    
+    return `
+      <div class="request-item" data-index="cart-${index}">
+        <div class="request-header">
+          <div>
+            <div class="request-algorithm">Product ID: ${req.productId}</div>
+            <div class="request-info">
+              <span class="request-param">Name: ${product.name || 'N/A'}</span>
+              <span class="request-time">${req.timeString}</span>
+            </div>
+          </div>
+          <span class="expand-icon">${isExpanded ? '▲' : '▼'}</span>
+        </div>
+        <div class="request-details ${isExpanded ? 'expanded' : ''}" id="details-cart-${index}">
+          <div class="detail-section">
+            <div class="detail-label">Product Details</div>
+            <div class="detail-content expanded">
+              ${Object.entries(product).map(([key, value]) => {
+                let displayValue = typeof value === 'object' ? JSON.stringify(value) : value;
+                try {
+                  displayValue = decodeURIComponent(escape(String(displayValue)));
+                } catch (e) {}
+                return `
+                  <div class="attribute-row">
+                    <span class="attribute-key">${key}:</span>
+                    <span class="attribute-value">${displayValue}</span>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+  
+  requestList.querySelectorAll('.request-item').forEach(item => {
+    const header = item.querySelector('.request-header');
+    header.addEventListener('click', (e) => {
+      const index = item.dataset.index;
+      
+      if (expandedItems.has(index)) {
+        expandedItems.delete(index);
+      } else {
+        expandedItems.add(index);
+      }
+      
+      loadRequests();
+    });
+  });
 };
