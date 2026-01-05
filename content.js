@@ -3,6 +3,96 @@ script.src = chrome.runtime.getURL('inject.js');
 (document.head || document.documentElement).appendChild(script);
 script.onload = () => script.remove();
 
+let generateTimeCheckInterval = null;
+let generateTimeCheckCount = 0;
+let errorBagCheckInterval = null;
+let errorBagCheckCount = 0;
+const MAX_CHECKS = 20;
+
+
+if ('PerformanceObserver' in window) {
+  const observer = new PerformanceObserver((list) => {
+    for (const entry of list.getEntries()) {
+      if (entry.name.includes('ins.js') && entry.initiatorType === 'script') {
+        startInsiderChecks();
+        observer.disconnect();
+        break;
+      }
+    }
+  });
+  
+  observer.observe({ entryTypes: ['resource'] });
+  
+  const scriptObserver = new MutationObserver((mutations) => {
+    for (const mutation of mutations) {
+      for (const node of mutation.addedNodes) {
+        if (node.tagName === 'SCRIPT' && node.src && node.src.includes('ins.js')) {
+          startInsiderChecks();
+          scriptObserver.disconnect();
+          break;
+        }
+      }
+    }
+  });
+  
+  scriptObserver.observe(document.documentElement, {
+    childList: true,
+    subtree: true
+  });
+  
+  setTimeout(() => {
+    const scripts = document.querySelectorAll('script[src*="ins.js"]');
+    if (scripts.length > 0) {
+      startInsiderChecks();
+      observer.disconnect();
+      scriptObserver.disconnect();
+    }
+  }, 1000);
+}
+
+function startInsiderChecks() {
+  startGenerateTimeChecks();
+  startErrorBagChecks();
+}
+
+function startGenerateTimeChecks() {
+  if (generateTimeCheckInterval) return;
+  
+  generateTimeCheckCount = 0;
+  window.postMessage({ type: 'GET_GENERATE_TIME' }, '*');
+  
+  generateTimeCheckInterval = setInterval(() => {
+    generateTimeCheckCount++;
+    
+    if (generateTimeCheckCount >= MAX_CHECKS) {
+      clearInterval(generateTimeCheckInterval);
+      generateTimeCheckInterval = null;
+      return;
+    }
+    
+    window.postMessage({ type: 'GET_GENERATE_TIME' }, '*');
+  }, 500);
+}
+
+function startErrorBagChecks() {
+  if (errorBagCheckInterval) return;
+  
+  errorBagCheckCount = 0;
+  window.postMessage({ type: 'GET_ERROR_BAG' }, '*');
+  
+  errorBagCheckInterval = setInterval(() => {
+    errorBagCheckCount++;
+    
+    if (errorBagCheckCount >= MAX_CHECKS) {
+      clearInterval(errorBagCheckInterval);
+      errorBagCheckInterval = null;
+      return;
+    }
+    
+    window.postMessage({ type: 'GET_ERROR_BAG' }, '*');
+  }, 500);
+}
+
 window.addEventListener('message', (event) => {
   if (event.source !== window) return;
   
@@ -17,15 +107,11 @@ window.addEventListener('message', (event) => {
     
     if (requestType === 'hit' && body) {
       try {
-        // Body zaten string ise decode etmeye çalışma
         let decodedBody = body;
-        
-        // Base64 encode edilmiş gibi görünüyorsa decode et
         if (typeof body === 'string' && !body.startsWith('{')) {
           try {
             decodedBody = atob(body);
           } catch (decodeError) {
-            // atob başarısız olursa body'yi olduğu gibi kullan
             decodedBody = body;
           }
         }
@@ -38,9 +124,7 @@ window.addEventListener('message', (event) => {
             pageType = bodyObj.page_type;
           }
         }
-      } catch (e) {
-        // JSON parse da başarısız olursa sessizce devam et
-      }
+      } catch (e) {}
     }
     
     try {
@@ -62,9 +146,7 @@ window.addEventListener('message', (event) => {
         
         chrome.storage.local.set({ [storageKey]: requests });
       });
-    } catch (e) {
-      // Extension context invalidated - ignore
-    }
+    } catch (e) {}
   }
   
   if (event.data.type === 'UCD_SESSION_EXPIRE') {
@@ -80,12 +162,9 @@ window.addEventListener('message', (event) => {
         if (requestIndex !== -1) {
           requests[requestIndex].sessionExpire = sessionExpire;
           chrome.storage.local.set({ ucdRequests: requests });
-          console.log('Session expire updated for UCD request:', sessionExpire);
         }
       });
-    } catch (e) {
-      // Extension context invalidated - ignore
-    }
+    } catch (e) {}
   }
   
   if (event.data.type === 'ADD_TO_CART_INTERCEPTED') {
@@ -105,18 +184,21 @@ window.addEventListener('message', (event) => {
         
         chrome.storage.local.set({ addToCartRequests: requests });
       });
-    } catch (e) {
-      // Extension context invalidated - ignore
-    }
+    } catch (e) {}
   }
   
   if (event.data.type === 'GENERATE_TIME_RESPONSE') {
     const { generateTime } = event.data.data;
     try {
       chrome.storage.local.set({ insiderGenerateTime: generateTime });
-    } catch (e) {
-      // Extension context invalidated - ignore
-    }
+    } catch (e) {}
+  }
+  
+  if (event.data.type === 'ERROR_BAG_RESPONSE') {
+    const { errorCount } = event.data.data;
+    try {
+      chrome.storage.local.set({ insiderErrorCount: errorCount });
+    } catch (e) {}
   }
 });
 
@@ -142,6 +224,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   
   if (message.type === 'GET_GENERATE_TIME') {
     window.postMessage({ type: 'GET_GENERATE_TIME' }, '*');
+    sendResponse({ success: true });
+  }
+  
+  if (message.type === 'GET_ERROR_BAG') {
+    window.postMessage({ type: 'GET_ERROR_BAG' }, '*');
+    sendResponse({ success: true });
+  }
+  
+  if (message.type === 'SHOW_ERROR_BAG') {
+    window.postMessage({ type: 'SHOW_ERROR_BAG' }, '*');
     sendResponse({ success: true });
   }
   

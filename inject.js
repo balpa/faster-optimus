@@ -34,7 +34,6 @@ XMLHttpRequest.prototype.send = function(body) {
         data: responseData
       }, '*');
       
-      // UCD request için ayrıca session storage'ı da gönder
       if (isUcd) {
         setTimeout(() => {
           try {
@@ -47,9 +46,7 @@ XMLHttpRequest.prototype.send = function(body) {
                 sessionExpire: sessionExpire
               }
             }, '*');
-          } catch (e) {
-            // Ignore error
-          }
+          } catch (e) {}
         }, 2000);
       }
     });
@@ -58,7 +55,6 @@ XMLHttpRequest.prototype.send = function(body) {
   return originalXHRSend.apply(this, arguments);
 };
 
-// UCD Segments reset mesajını dinle
 window.addEventListener('message', (event) => {
   if (event.source !== window) return;
   
@@ -69,9 +65,7 @@ window.addEventListener('message', (event) => {
       } else {
         sessionStorage.removeItem('ins-uss');
       }
-    } catch (e) {
-      // Ignore error
-    }
+    } catch (e) {}
   }
   
   if (event.data.type === 'TOGGLE_ADD_TO_CART_TRACKING') {
@@ -94,6 +88,26 @@ window.addEventListener('message', (event) => {
     } catch (e) {
       // Ignore error
     }
+  }
+  
+  if (event.data.type === 'GET_ERROR_BAG') {
+    try {
+      const errors = window.Insider?.errorBag?._errors || [];
+      window.postMessage({
+        type: 'ERROR_BAG_RESPONSE',
+        data: {
+          errorCount: errors.length
+        }
+      }, '*');
+    } catch (e) {}
+  }
+  
+  if (event.data.type === 'SHOW_ERROR_BAG') {
+    try {
+        if (window.Insider?.errorBag?._errors) {
+            console.log(window.Insider?.errorBag?._errors);
+        }
+    } catch (e) {}
   }
 });
 

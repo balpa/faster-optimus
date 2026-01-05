@@ -25,6 +25,36 @@ body {
   margin-bottom: 15px;
 }
 
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.error-indicator {
+  background: linear-gradient(135deg, #f44336 0%, #d32f2f 100%);
+  color: white;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(244, 67, 54, 0.4);
+  transition: all 0.2s;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.error-indicator:hover {
+  background: linear-gradient(135deg, #e53935 0%, #c62828 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(244, 67, 54, 0.5);
+}
+
+.error-indicator:active {
+  transform: translateY(0);
+}
+
 h1 {
   font-size: 18px;
   color: #667eea;

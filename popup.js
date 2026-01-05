@@ -2,6 +2,20 @@ document.addEventListener('DOMContentLoaded', () => {
   loadRequests();
   startPolling();
   
+  const errorIndicator = document.getElementById('errorIndicator');
+  if (errorIndicator) {
+    errorIndicator.addEventListener('click', (e) => {
+      e.stopPropagation();
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs[0]) {
+          chrome.tabs.sendMessage(tabs[0].id, { type: 'SHOW_ERROR_BAG' }, () => {
+            if (chrome.runtime.lastError) {}
+          });
+        }
+      });
+    }, { once: false });
+  }
+  
   document.querySelectorAll('.section-header').forEach(header => {
     header.addEventListener('click', (e) => {
       if (e.target.classList.contains('clear-btn-small')) return;
@@ -55,12 +69,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
   
-  // Toggle switch için storage'dan durumu yükle
   chrome.storage.local.get(['trackAddToCart'], (result) => {
     const toggle = document.getElementById('trackAddToCartToggle');
     toggle.checked = result.trackAddToCart || false;
     
-    // İlk durumu gönder
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       if (tabs[0]) {
         chrome.tabs.sendMessage(tabs[0].id, { 
@@ -93,40 +105,56 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
   
-  // Generate Time'ı çek ve göster
   updateGenerateTime();
-  setInterval(updateGenerateTime, 2000);
+  updateErrorCount();
+  
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName === 'local') {
+      if (changes.insiderGenerateTime) {
+        updateGenerateTime();
+      }
+      if (changes.insiderErrorCount) {
+        updateErrorCount();
+      }
+    }
+  });
 });
 
 const updateGenerateTime = () => {
-  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-    if (tabs[0]) {
-      chrome.tabs.sendMessage(tabs[0].id, { type: 'GET_GENERATE_TIME' }, () => {
-        if (chrome.runtime.lastError) {
-          // Extension context invalidated - ignore
-        }
-      });
-      
-      chrome.storage.local.get(['insiderGenerateTime'], (result) => {
-        const generateTime = result.insiderGenerateTime;
-        const gtElement = document.getElementById('generateTime');
-        
-        if (generateTime) {
-          const date = new Date(generateTime * 1000);
-          gtElement.textContent = `GT: ${date.toLocaleString('tr-TR', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit'
-          })}`;
-          gtElement.style.color = '#667eea';
-        } else {
-          gtElement.textContent = 'GT: -';
-          gtElement.style.color = '#999';
-        }
-      });
+  chrome.storage.local.get(['insiderGenerateTime'], (result) => {
+    const generateTime = result.insiderGenerateTime;
+    const gtElement = document.getElementById('generateTime');
+    
+    if (generateTime) {
+      const date = new Date(generateTime * 1000);
+      gtElement.textContent = `GT: ${date.toLocaleString('tr-TR', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      })}`;
+      gtElement.style.color = '#667eea';
+    } else {
+      gtElement.textContent = 'GT: -';
+      gtElement.style.color = '#999';
+    }
+  });
+};
+
+const updateErrorCount = () => {
+  chrome.storage.local.get(['insiderErrorCount'], (result) => {
+    const errorCount = result.insiderErrorCount || 0;
+    const errorIndicator = document.getElementById('errorIndicator');
+    
+    if (errorIndicator) {
+      if (errorCount > 0) {
+        errorIndicator.textContent = `${errorCount} error${errorCount > 1 ? 's' : ''}`;
+        errorIndicator.style.display = 'block';
+      } else {
+        errorIndicator.style.display = 'none';
+      }
     }
   });
 };
@@ -137,6 +165,8 @@ let lastRecommendationCount = 0;
 let lastHitCount = 0;
 let lastUcdCount = 0;
 let lastAddToCartCount = 0;
+let lastRequestsHash = '';
+let isRendering = false;
 
 const startPolling = () => {
   setInterval(() => {
@@ -162,21 +192,39 @@ const startPolling = () => {
 };
 
 const loadRequests = () => {
+  if (isRendering) return;
+  
   chrome.storage.local.get(['recommendationRequests', 'hitRequests', 'ucdRequests', 'addToCartRequests'], (result) => {
     const recommendationRequests = result.recommendationRequests || [];
     const hitRequests = result.hitRequests || [];
     const ucdRequests = result.ucdRequests || [];
     const addToCartRequests = result.addToCartRequests || [];
     
+    const currentHash = JSON.stringify({
+      rec: recommendationRequests.map(r => r.url + r.timestamp),
+      hit: hitRequests.map(r => r.url + r.timestamp),
+      ucd: ucdRequests.map(r => r.url + r.timestamp),
+      cart: addToCartRequests.map(r => r.productId + r.timestamp),
+      expanded: Array.from(expandedItems).sort(),
+      sections: Array.from(expandedSections.entries()).sort()
+    });
+    
     document.getElementById('recommendationCount').textContent = recommendationRequests.length;
     document.getElementById('hitCount').textContent = hitRequests.length;
     document.getElementById('ucdCount').textContent = ucdRequests.length;
     document.getElementById('addToCartCount').textContent = addToCartRequests.length;
     
-    renderRequestList('recommendationList', recommendationRequests);
-    renderRequestList('hitList', hitRequests);
-    renderUcdList('ucdList', ucdRequests);
-    renderAddToCartList('addToCartList', addToCartRequests);
+    if (currentHash !== lastRequestsHash) {
+      isRendering = true;
+      lastRequestsHash = currentHash;
+      
+      renderRequestList('recommendationList', recommendationRequests);
+      renderRequestList('hitList', hitRequests);
+      renderUcdList('ucdList', ucdRequests);
+      renderAddToCartList('addToCartList', addToCartRequests);
+      
+      isRendering = false;
+    }
   });
 };
 
