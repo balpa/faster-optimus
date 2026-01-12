@@ -86,7 +86,6 @@ window.addEventListener('message', (event) => {
         }
       }, '*');
     } catch (e) {
-      // Ignore error
     }
   }
   
@@ -107,6 +106,18 @@ window.addEventListener('message', (event) => {
         if (window.Insider?.errorBag?._errors) {
             console.log(window.Insider?.errorBag?._errors);
         }
+    } catch (e) {}
+  }
+  
+  if (event.data.type === 'GET_PARTNER_NAME') {
+    try {
+      const partnerName = window.Insider?.partner?.name;
+      window.postMessage({
+        type: 'PARTNER_NAME_RESPONSE',
+        data: {
+          partnerName: partnerName || null
+        }
+      }, '*');
     } catch (e) {}
   }
 });

@@ -80,7 +80,6 @@ document.addEventListener('DOMContentLoaded', () => {
           enabled: toggle.checked 
         }, () => {
           if (chrome.runtime.lastError) {
-            // Extension context invalidated - ignore
           }
         });
       }
@@ -98,7 +97,6 @@ document.addEventListener('DOMContentLoaded', () => {
           enabled: enabled 
         }, () => {
           if (chrome.runtime.lastError) {
-            // Extension context invalidated - ignore
           }
         });
       }
@@ -107,6 +105,208 @@ document.addEventListener('DOMContentLoaded', () => {
   
   updateGenerateTime();
   updateErrorCount();
+  
+  const partnerNameInput = document.getElementById('partnerNameInput');
+  const bringSettingsBtn = document.getElementById('bringSettingsBtn');
+  const loginBtn = document.getElementById('loginBtn');
+  const partnerError = document.getElementById('partnerError');
+  const partnerSettingsOutput = document.getElementById('partnerSettingsOutput');
+  
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    if (tabs[0]) {
+      chrome.tabs.sendMessage(tabs[0].id, { type: 'GET_PARTNER_NAME' }, (response) => {
+        if (chrome.runtime.lastError) {
+          return;
+        }
+        if (response && response.partnerName) {
+          partnerNameInput.value = response.partnerName;
+        }
+      });
+    }
+  });
+  
+  partnerNameInput.addEventListener('input', () => {
+    partnerError.style.display = 'none';
+  });
+  
+  loginBtn.addEventListener('click', () => {
+    chrome.tabs.create({ url: 'https://gachapon.useinsider.com/login' });
+  });
+  
+  bringSettingsBtn.addEventListener('click', async () => {
+    const partnerName = partnerNameInput.value.trim();
+    
+    if (!partnerName) {
+      showPartnerError('Partner name cannot be empty');
+      return;
+    }
+    
+    if (partnerName.length < 2) {
+      showPartnerError('Partner name must be at least 2 characters');
+      return;
+    }
+    
+    if (partnerName.length > 30) {
+      showPartnerError('Partner name cannot exceed 30 characters');
+      return;
+    }
+    
+    bringSettingsBtn.disabled = true;
+    bringSettingsBtn.textContent = 'Loading...';
+    partnerSettingsOutput.innerHTML = '';
+    partnerError.style.display = 'none';
+    
+    try {
+      const [accountPreferencesResponse, restrictedSettingsResponse] = await Promise.all([
+        fetch(`https://gachapon.useinsider.com/ajax/partner-settings/${partnerName}/account-preferences-settings`, { redirect: 'manual' }),
+        fetch(`https://gachapon.useinsider.com/ajax/partner-settings/${partnerName}/restricted-settings`, { redirect: 'manual' })
+      ]);
+      
+      if (accountPreferencesResponse.type === 'opaqueredirect' || restrictedSettingsResponse.type === 'opaqueredirect' ||
+          accountPreferencesResponse.status === 302 || restrictedSettingsResponse.status === 302 ||
+          accountPreferencesResponse.redirected || restrictedSettingsResponse.redirected) {
+        showPartnerError('Authentication required. Please login first.');
+        chrome.tabs.create({ url: 'https://gachapon.useinsider.com/login' });
+        return;
+      }
+      
+      if (!accountPreferencesResponse.ok || !restrictedSettingsResponse.ok) {
+        throw new Error(`HTTP error! status: ${accountPreferencesResponse.status} / ${restrictedSettingsResponse.status}`);
+      }
+      
+      const [accountData, restrictedData] = await Promise.all([
+        accountPreferencesResponse.json(),
+        restrictedSettingsResponse.json()
+      ]);
+      
+      displayPartnerSettings(accountData, restrictedData);
+    } catch (error) {
+      showPartnerError(`Failed to fetch partner settings: ${error.message}`);
+    } finally {
+      bringSettingsBtn.disabled = false;
+      bringSettingsBtn.textContent = 'Fetch';
+    }
+  });
+  
+  function showPartnerError(message) {
+    partnerError.textContent = message;
+    partnerError.style.display = 'block';
+  }
+  
+  function displayPartnerSettings(accountData, restrictedData) {
+    const partnerId = accountData.partnerId || 'N/A';
+    const multiDomainStorageSupport = accountData.multiDomainStorageSupport !== undefined ? accountData.multiDomainStorageSupport : 'N/A';
+    const supportedCurrencies = accountData.supportedCurrencies || [];
+    const currency = accountData.currency || 'N/A';
+    const timezone = accountData.timezone || 'N/A';
+    const domainList = accountData.domainList || [];
+    const eventCollectionStatus = restrictedData.eventCollectionStatus || {};
+    const isNewIOActive = restrictedData.isNewIOActive !== undefined ? String(restrictedData.isNewIOActive) : 'false';
+    
+    let html = `
+      <div class="setting-item">
+        <div class="setting-label">Partner ID</div>
+        <div class="setting-value">${partnerId}</div>
+      </div>
+      <div class="setting-item">
+        <div class="setting-label">Multi Domain Storage Support</div>
+        <div class="setting-value">${multiDomainStorageSupport}</div>
+      </div>
+      <div class="setting-item">
+        <div class="setting-label">Is New IO Active</div>
+        <div class="setting-value">${isNewIOActive}</div>
+      </div>
+      <div class="setting-item">
+        <div class="setting-label">Preferred Currency</div>
+        <div class="setting-value">${currency}</div>
+      </div>
+      <div class="setting-item">
+        <div class="setting-label">Timezone</div>
+        <div class="setting-value">${timezone}</div>
+      </div>
+    `;
+    
+    if (Object.keys(eventCollectionStatus).length > 0) {
+      html += `
+        <div class="setting-item">
+          <div class="setting-label">Event Collection Status</div>
+          <div class="setting-value">
+            ${Object.entries(eventCollectionStatus).map(([key, value]) => `
+              <div class="attribute-row">
+                <span class="attribute-key">${key}:</span>
+                <span class="attribute-value">${value}</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+    
+    if (supportedCurrencies.length > 0) {
+      html += `
+        <div class="setting-item">
+          <div class="setting-label">Supported Currencies</div>
+          <div class="setting-value currency-list">
+            ${supportedCurrencies.map(curr => `<span class="currency-badge">${curr}</span>`).join('')}
+          </div>
+        </div>
+      `;
+    }
+    
+    if (domainList.length > 0) {
+      html += `
+        <div class="setting-item">
+          <div class="setting-label">Domain List</div>
+          <div class="setting-value currency-list">
+            ${domainList.map(domain => `<span class="currency-badge">${domain}</span>`).join('')}
+          </div>
+        </div>
+      `;
+    }
+    
+    partnerSettingsOutput.innerHTML = html;
+  }
+  
+  const base64Input = document.getElementById('base64Input');
+  const base64Output = document.getElementById('base64Output');
+  const copyDecodedBtn = document.getElementById('copyDecodedBtn');
+  
+  base64Input.addEventListener('input', (e) => {
+    const input = e.target.value.trim();
+    
+    if (!input) {
+      base64Output.innerHTML = '';
+      copyDecodedBtn.style.display = 'none';
+      return;
+    }
+    
+    try {
+      const decoded = atob(input);
+      
+      try {
+        const jsonObj = JSON.parse(decoded);
+        base64Output.innerHTML = syntaxHighlightJSON(jsonObj);
+      } catch {
+        base64Output.textContent = decoded;
+      }
+      
+      copyDecodedBtn.style.display = 'block';
+    } catch (error) {
+      base64Output.innerHTML = '<span style="color: #f44336;">Invalid Base64 input</span>';
+      copyDecodedBtn.style.display = 'none';
+    }
+  });
+  
+  copyDecodedBtn.addEventListener('click', () => {
+    const textToCopy = base64Output.textContent;
+    navigator.clipboard.writeText(textToCopy).then(() => {
+      const originalText = copyDecodedBtn.textContent;
+      copyDecodedBtn.textContent = 'Copied!';
+      setTimeout(() => {
+        copyDecodedBtn.textContent = originalText;
+      }, 1500);
+    });
+  });
   
   chrome.storage.onChanged.addListener((changes, areaName) => {
     if (areaName === 'local') {
@@ -664,5 +864,29 @@ const renderAddToCartList = (containerId, requests) => {
       
       loadRequests();
     });
+  });
+};
+
+const syntaxHighlightJSON = (json) => {
+  if (typeof json !== 'string') {
+    json = JSON.stringify(json, null, 2);
+  }
+  
+  json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  
+  return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, (match) => {
+    let cls = 'json-number';
+    if (/^"/.test(match)) {
+      if (/:$/.test(match)) {
+        cls = 'json-key';
+      } else {
+        cls = 'json-string';
+      }
+    } else if (/true|false/.test(match)) {
+      cls = 'json-boolean';
+    } else if (/null/.test(match)) {
+      cls = 'json-null';
+    }
+    return '<span class="' + cls + '">' + match + '</span>';
   });
 };

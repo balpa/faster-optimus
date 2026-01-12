@@ -17,6 +17,33 @@
     </div>
     <div class="sections">
       <div class="section">
+        <div class="section-header" data-section="partnerSettings">
+          <span class="section-title">Partner Settings</span>
+          <div class="section-actions">
+            <span class="section-expand-icon">▼</span>
+          </div>
+        </div>
+        <div id="partnerSettingsContent" class="section-content">
+          <div class="partner-settings-wrapper">
+            <div class="partner-input-group">
+              <input 
+                type="text" 
+                id="partnerNameInput" 
+                class="partner-input" 
+                placeholder="Enter partner name (2-30 characters)"
+                maxlength="30"
+              />
+              <button id="bringSettingsBtn" class="bring-btn">Fetch</button>
+            </div>
+            <div class="partner-button-group">
+              <button id="loginBtn" class="login-btn">Login</button>
+            </div>
+            <div id="partnerError" class="partner-error" style="display: none;"></div>
+            <div id="partnerSettingsOutput" class="partner-settings-output"></div>
+          </div>
+        </div>
+      </div>
+      <div class="section">
         <div class="section-header" data-section="recommendation">
           <span class="section-title">Recommendation <span class="count-arrow">→</span> <span id="recommendationCount" class="count-badge">0</span></span>
           <div class="section-actions">
@@ -62,6 +89,26 @@
           </div>
         </div>
         <div id="addToCartList" class="section-content"></div>
+      </div>
+      <div class="section">
+        <div class="section-header" data-section="base64Decoder">
+          <span class="section-title">Base64 Decoder</span>
+          <div class="section-actions">
+            <span class="section-expand-icon">▼</span>
+          </div>
+        </div>
+        <div id="base64DecoderContent" class="section-content">
+          <div class="base64-decoder-wrapper">
+            <textarea id="base64Input" class="base64-input" placeholder="Paste Base64 encoded text here..."></textarea>
+            <div class="base64-output-wrapper">
+              <div class="base64-output-header">
+                <span class="output-label">Decoded Output:</span>
+                <button id="copyDecodedBtn" class="copy-btn" style="display: none;">Copy</button>
+              </div>
+              <pre id="base64Output" class="base64-output"></pre>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>

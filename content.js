@@ -200,6 +200,14 @@ window.addEventListener('message', (event) => {
       chrome.storage.local.set({ insiderErrorCount: errorCount });
     } catch (e) {}
   }
+  
+  if (event.data.type === 'PARTNER_NAME_RESPONSE') {
+    const { partnerName } = event.data.data;
+    if (window.partnerNameCallback) {
+      window.partnerNameCallback({ partnerName: partnerName });
+      window.partnerNameCallback = null;
+    }
+  }
 });
 
 if (window === window.top) {
@@ -235,6 +243,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'SHOW_ERROR_BAG') {
     window.postMessage({ type: 'SHOW_ERROR_BAG' }, '*');
     sendResponse({ success: true });
+  }
+  
+  if (message.type === 'GET_PARTNER_NAME') {
+    window.partnerNameCallback = sendResponse;
+    window.postMessage({ type: 'GET_PARTNER_NAME' }, '*');
+    return true;
   }
   
   return true;
